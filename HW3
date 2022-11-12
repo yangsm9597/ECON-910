@@ -1,0 +1,213 @@
+## Mike Yang HW3
+## Q1
+library(tstools)
+library(readr)
+library(nleqslv)
+
+
+## import data
+## I used %change US RGDP, %change OIL price and %Change US Net export  
+gdp <- read_csv("GDPC1.csv")
+gdp <- ts(gdp[,2])
+plot(gdp)
+
+oil <- read_csv("DCOILWTICO.csv")
+oil <- ts(oil[,2])
+plot(oil)
+
+export <- read_csv("NETEXP.csv")
+export <- ts(export[,2])
+plot(export)
+
+gdp.ar1 <- arima(gdp,order=c(1,0,0))
+oil.ar1 <- arima(oil,order=c(1,0,0))
+export.ar1 <- arima(export,order=c(1,0,0))
+
+gdp.ar1
+oil.ar1
+export.ar1
+
+## datas are stationary
+
+# Estimate the reduced form VAR
+rhs <- ts.combine(oil, gdp, export)
+fit.oil <- tsreg(oil, rhs)
+fit.gdp <- tsreg(gdp, rhs)
+fit.export <- tsreg(export, rhs)
+
+# Covariance matrix of the residuals
+oil.res <- fit.oil$resids
+gdp.res <- fit.gdp$resids
+export.res <- fit.export$resids
+res <- ts.combine(oil.res, gdp.res, export.res)
+res
+cov(res)
+
+##Q2 & 3
+## on the paper
+
+##Q4
+
+nleq.obj <- function(par) {
+  b <- 0
+  c <- 0
+  d <- par[1]
+  f <- 0
+  g <- par[2]
+  h <- par[3]
+  soil <- par[4]
+  sgdp <- par[5]
+  sexport <- par[6]
+  dev1 <- soil + (b^2)*sgdp + (c^2)*sexport - 6.392400e-30
+  dev2 <- d*soil + b*sgdp + c*f*sexport - 4.040203e-32
+  dev3 <- g*soil + b*h*sgdp + c*sexport - 2.355842e-31
+  dev4 <- d*soil + sgdp + f^2*sexport - 1.046055e-31
+  dev5 <- d*soil + h*sgdp + f*sexport -5.165225e-33
+  dev6 <- g^2*soil + h^2*sgdp + sexport - 3.217423e-30
+  return(c(dev1 , dev2 , dev3 , dev4 , dev5 , dev6))
+}
+nleqslv(c(0.1, 0.1, 0.1, 0.1, 0.1, 0.1), nleq.obj)
+
+library(vars)
+varfit <- VAR(ts.combine(oil, gdp, export), 1)
+F <- formF(varfit)
+F
+
+nextForecast <- function(lastForecast, newinfo) {
+  return(F %*% lastForecast)
+}
+
+last(oil)
+last(gdp)
+last(export)
+
+forecasts.data <- Reduce(nextForecast, 1:12,
+                         init=c(-20.24765, -1.17515, 1.56252, 1),
+                         accumulate=TRUE)
+
+nochange <- collect(forecasts.data,
+                    transform=function(el) {el[1]},
+                    output="numeric")
+nochange
+
+# shock on oil +1
+forecasts.counterfactual <- Reduce(nextForecast, 1:12,
+                                   init=c(-19.24765, -1.07515, 1.66252, 1),
+                                   accumulate=TRUE)
+counterfactual <- collect(forecasts.counterfactual,
+                          transform=function(el) {el[1]},
+                          output="numeric")
+counterfactual
+
+irf <- counterfactual - nochange
+irf
+
+plot(irf)
+
+##Q5
+
+nleq.obj <- function(par) {
+  
+  b <- par[1]
+  c <- 0
+  d <- par[2]
+  f <- 0
+  g <- 0
+  h <- par[3]
+  soil <- par[4]
+  sgdp <- par[5]
+  sexport <- par[6]
+  dev1 <- soil + (b^2)*sgdp + (c^2)*sexport - 6.392400e-30
+  dev2 <- d*soil + b*sgdp + c*f*sexport - 4.040203e-32
+  dev3 <- g*soil + b*h*sgdp + c*sexport - 2.355842e-31
+  dev4 <- d*soil + sgdp + f^2*sexport - 1.046055e-31
+  dev5 <- d*soil + h*sgdp + f*sexport -5.165225e-33
+  dev6 <- g^2*soil + h^2*sgdp + sexport - 3.217423e-30
+  return(c(dev1 , dev2 , dev3 , dev4 , dev5 , dev6))
+}
+nleqslv(c(0.1, 0.1, 0.1, 0.1, 0.1, 0.1), nleq.obj)
+
+
+varfit <- VAR(ts.combine(oil, gdp, export), 1)
+F <- formF(varfit)
+F
+
+nextForecast <- function(lastForecast, newinfo) {
+  return(F %*% lastForecast)
+}
+
+last(oil)
+last(gdp)
+last(export)
+
+forecasts.data <- Reduce(nextForecast, 1:12,
+                         init=c(-20.24765, -1.17515, 1.56252, 1),
+                         accumulate=TRUE)
+
+nochange <- collect(forecasts.data,
+                    transform=function(el) {el[1]},
+                    output="numeric")
+nochange
+
+# shock on oil +1
+forecasts.counterfactual <- Reduce(nextForecast, 1:12,
+                                   init=c(-19.24765, -1.07515, 1.56252, 1),
+                                   accumulate=TRUE)
+counterfactual <- collect(forecasts.counterfactual,
+                          transform=function(el) {el[1]},
+                          output="numeric")
+counterfactual
+
+irf <- counterfactual - nochange
+irf
+plot(irf)
+
+# Acceptable
+
+##Q6
+
+irf.solve <- function(b.guess, c.guess, f.guess) {
+  nleq.obj <- function(par) {
+    b <- b.guess
+    c <- c.guess
+    d <- par[1]
+    f <- f.guess
+    g <- par[2]
+    h <- par[3]
+    soil <- par[4]
+    sgdp <- par[5]
+    sexport <- par[6]
+    dev1 <- soil + (b^2)*sgdp + (c^2)*sexport - 6.392400e-30
+    dev2 <- d*soil + b*sgdp + c*f*sexport - 4.040203e-32
+    dev3 <- g*soil + b*h*sgdp + c*sexport - 2.355842e-31
+    dev4 <- d*soil + sgdp + f^2*sexport - 1.046055e-31
+    dev5 <- d*soil + h*sgdp + f*sexport -5.165225e-33
+    dev6 <- g^2*soil + h^2*sgdp + sexport - 3.217423e-30
+    return(c(dev1 , dev2 , dev3 , dev4 , dev5 , dev6))
+  }
+}
+
+  # Solve for b = b.guess , c= c.guess, f =f.guess 
+  soln <- nleqslv(c(0.1, 0.1, 0.1,0.1,0.1,0.1), nleq.obj)
+  d.value <- soln$x[1]
+  g.value <- soln$x[2]
+  h.value <- soln$x[3]
+
+  forecasts.counterfactual <- 
+    Reduce(nextForecast, 1:12,
+           init=c(-20.24765, -1.07515+d.value, 1.66252+g.value + h.value , 1),
+           accumulate=TRUE)
+  counterfactual <-  collect(forecasts.counterfactual,
+            transform=function(el) {el[1]},
+            output="numeric")  
+
+# Calculate the IRF
+IRF <- counterfactual - nochange
+plot(IRF)
+
+## IRF is acceptable
+
+## Not working :(
+return(list(
+  check=all( (counterfactual - nochange) < 0.0 ),
+  b=b.guess, c= c.guess, f =f.guess ))
